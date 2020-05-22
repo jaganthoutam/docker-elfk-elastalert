@@ -1,0 +1,157 @@
+version: '3.2'
+
+services:
+  elasticsearch:
+    container_name: elasticsearch
+    build:
+      context: elasticsearch/
+      args:
+        ELK_VERSION: ${ELK_VERSION}
+    volumes:
+      - type: bind
+        source: ./elasticsearch/config/elasticsearch.yml
+        target: /usr/share/elasticsearch/config/elasticsearch.yml
+        read_only: true
+      - type: volume
+        source: elasticsearch
+        target: /usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    environment:
+      ES_JAVA_OPTS: "-Xmx8g -Xms8g"
+      # Use single node discovery in order to disable production mode and avoid bootstrap checks
+      # see https://www.elastic.co/guide/en/elasticsearch/reference/current/bootstrap-checks.html
+      discovery.type: single-node
+    networks:
+      - elk
+
+
+
+  filebeat:
+    container_name: filebeat
+    build:
+      context: filebeat/
+      args:
+        ELK_VERSION: ${ELK_VERSION}
+    volumes:
+      - ${PWD}/filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml
+      - /var/lib/docker/containers:/var/lib/docker/containers:rw
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      LS_JAVA_OPTS: "-Xmx256m -Xms256m"
+    networks:
+      - elk
+    depends_on:
+      - elasticsearch
+
+  logstash:
+    container_name: logstash
+    build:
+      context: logstash/
+      args:
+        ELK_VERSION: ${ELK_VERSION}
+    volumes:
+      - type: bind
+        source: ./logstash/config/logstash.yml
+        target: /usr/share/logstash/config/logstash.yml
+        read_only: true
+      - type: bind
+        source: ./logstash/pipeline
+        target: /usr/share/logstash/pipeline
+        read_only: true
+    ports:
+      - "5000:5000/tcp"
+      - "5000:5000/udp"
+      - "9600:9600"
+      - "5044:5044"
+    environment:
+      LS_JAVA_OPTS: "-Xmx256m -Xms256m"
+    networks:
+      - elk
+    depends_on:
+      - elasticsearch
+
+  kibana:
+    container_name: kibana
+    build:
+      context: kibana/
+      args:
+        ELK_VERSION: ${ELK_VERSION}
+    volumes:
+      - type: bind
+        source: ./kibana/config/kibana.yml
+        target: /usr/share/kibana/config/kibana.yml
+        read_only: true
+    ports:
+      - "5601:5601"
+    environment:
+      NODE_OPTIONS: "--max-old-space-size=2000"
+    networks:
+      - elk
+    depends_on:
+      - elasticsearch
+
+
+  nginx:
+    container_name: nginx
+    image: nginx:latest
+    ports:
+        - 80:80
+        - 8080:8080
+    volumes:
+        - ${PWD}/nginx-config/:/etc/nginx/conf.d/
+    command: /bin/bash -c "nginx -g 'daemon off;'"
+    ulimits:
+      nproc: 65535
+    networks:
+      - elk
+    depends_on:
+      - kibana
+      - elasticsearch
+  
+
+  elastalert:
+    container_name: elastalert
+    build:
+      context: .
+      dockerfile: elastalert/Dockerfile
+      #    image: malcolmnetsec/elastalert:2.0.4
+    image: bitsensor/elastalert:latest
+    restart: "no"
+    hostname: elastalert
+    environment:
+      ELASTICSEARCH_URL : 'http://elasticsearch:9200'
+      ES_HOST : 'elasticsearch'
+      ES_PORT : 9200
+    expose:
+      - 3030
+      - 3333
+    volumes:
+      - ./elastalert/elastalert/config/elastalert.yaml:/opt/elastalert/config.yaml
+      - ./elastalert/elastalert/config/elastalert-test.yaml:/opt/elastalert/config-test.yaml
+      - ./elastalert/elastalert/smtp-auth.yml:/opt/elastalert/smtp-auth.yaml:ro
+      - ./elastalert/elastalert/config/config.json:/opt/elastalert-server/config/config.json
+      - ./elastalert/elastalert/rule_templates:/opt/elastalert/rule_templates  
+      - type: volume
+        source: elastalert
+        target: /opt/elastalert/rules
+    healthcheck:
+      test: ["CMD", "curl", "--silent", "--fail", "http://localhost:3030"]
+      interval: 30s
+      timeout: 15s
+      retries: 3
+    networks:
+      - elk
+    depends_on:
+      - kibana
+      - elasticsearch
+
+networks:
+  elk:
+    driver: bridge
+
+volumes:
+  elasticsearch:
+  elastalert:
+
