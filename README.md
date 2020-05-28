@@ -16,6 +16,9 @@ firewall-cmd --zone=public --add-port=4789/udp --permanent
 firewall-cmd --zone=public --add-port=7946/tcp --permanent
 firewall-cmd --zone=public --add-port=7946/udp --permanent
 firewall-cmd --zone=public --add-port=10250/tcp --permanent
+firewall-cmd --zone=public --add-port=5044/tcp --permanent
+firewall-cmd --zone=public --add-port=5044/udp --permanent
+firewall-cmd --reload
 #For Elastic Search
 firewall-cmd --zone=public --add-port=8080/tcp --permanent  
 firewall-cmd --zone=public --add-port=1337/tcp --permanent
