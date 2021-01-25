@@ -32,8 +32,8 @@ systemctl restart docker
 ```
 ## Elasticsearch docker-compose 
 ```bash
-https://github.com/jaganthoutam/docker-elk-new.git
+git clone https://github.com/jaganthoutam/docker-elk-new.git
 cd docker-elk-new
+dotenv: found '.env' file. Source it? ([Y]es/[n]o/[a]lways/n[e]ver) y
 docker-compose up -d
-
 ```
